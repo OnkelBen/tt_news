@@ -3648,9 +3648,44 @@ class TtNews extends AbstractPlugin
             }
 
             // if categoryMode is 'show items AND' it's required to check if the records in the result do actually have the same number of categories as in $this->catExclusive
+	    /* BUGFIX: this ist NOT correct, just counting is not enough
+	    (Example: "show items AND" with selected categories A and B; items News1 with categories A, B and C; News2 with categories A and D)
+	    News 1 should be listed (but it isn't) and News 2 should not be listed (but it is)
+	    
             if ($this->catExclusive && $this->config['categoryMode'] == 2) {
-                $selectConf['where'] .= ' AND tt_news.category = ' . count(explode(',', $this->catExclusive));
-            }
+		$selectConf['where'] .= ' AND tt_news.category = '.count(explode(',', $this->catExclusive));
+	    }
+	    */
+
+	    if ($this->catExclusive && $this->config['categoryMode'] == 2) {
+  		$tmpCatExclusive = $this->catExclusive;  
+  		$res = $this->exec_getQuery('tt_news', $selectConf);
+  
+  		$results = array();
+  		$resultsCount = array();
+  		while ($row = $this->db->sql_fetch_assoc($res)) {
+  			$results[] = $row['uid'];
+  			if (in_array($row['uid'], $results)) {
+  				$resultsCount[$row['uid']]++;
+  			}
+  		}
+  
+  		$catCount = count(explode(',',$tmpCatExclusive));
+  
+  		$cleanedResultsCount = array();
+  		foreach ($resultsCount as $uid => $hits) {
+  			if ($hits == $catCount) {
+  				$cleanedResultsCount[] = $uid;
+  			}
+  		}
+
+  		$matchlist = implode(',',$cleanedResultsCount);
+  		if ($matchlist) {
+  			$selectConf['where'] .= ' AND tt_news.uid IN ('.$matchlist.')';
+  		} else {
+  			$selectConf['where'] .= ' AND tt_news.uid IN (0)';
+  		}
+	    }
 
             // if categoryMode is 'don't show items OR' we check if each found record does not have any of the deselected categories assigned
             if ($this->catExclusive && $this->config['categoryMode'] == -2) {
